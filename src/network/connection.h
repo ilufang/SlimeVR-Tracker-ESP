@@ -117,6 +117,8 @@ public:
 	);
 #endif
 
+	void sendRebornRawIMUData(RebornPacket *pkt);
+
 	const ServerFeatures& getServerFeatureFlags() { return m_ServerFeatures; }
 
 	bool beginBundle();
@@ -127,6 +129,7 @@ private:
 	void maybeRequestFeatureFlags();
 
 	bool beginPacket();
+	bool beginRebornPacket();
 	bool endPacket();
 
 	size_t write(const uint8_t* buffer, size_t size);

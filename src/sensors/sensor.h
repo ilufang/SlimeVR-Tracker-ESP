@@ -48,6 +48,20 @@ enum class MagnetometerStatus : uint8_t {
 	MAG_ENABLED = 2,
 };
 
+struct RebornPacket {
+public:
+	/// Timestamp in milliseconds
+	uint32_t ts;
+	/// Rotations
+	int16_t rX, rY, rZ;
+	/// Accelerations
+	int16_t aX, aY, aZ;
+	/// Magnetic Orientations
+	int16_t mX, mY, mZ;
+	/// ID
+	uint8_t sensorId;
+} __attribute__((packed));
+
 class Sensor {
 public:
 	Sensor(
@@ -93,6 +107,7 @@ public:
 	uint8_t getSensorId() { return sensorId; };
 	ImuID getSensorType() { return sensorType; };
 	MagnetometerStatus getMagStatus() { return magStatus; };
+	void _setMagStatus(MagnetometerStatus value) { magStatus = value; }
 	const Vector3& getAcceleration() { return acceleration; };
 	const Quat& getFusedRotation() { return fusedRotation; };
 	bool hasNewDataToSend() { return newFusedRotation || newAcceleration; };
@@ -119,6 +134,8 @@ protected:
 public:
 	uint8_t sclPin = 0;
 	uint8_t sdaPin = 0;
+
+	RebornPacket rawPkt;
 
 private:
 	void printTemperatureCalibrationUnsupported();

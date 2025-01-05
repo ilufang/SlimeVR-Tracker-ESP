@@ -57,6 +57,10 @@ void Sensor::sendData() {
 			calibrationAccuracy
 		);
 
+		rawPkt.sensorId = sensorId;
+		rawPkt.ts = millis();
+		networkConnection.sendRebornRawIMUData(&rawPkt);
+
 #ifdef DEBUG_SENSOR
 		m_Logger.trace("Quaternion: %f, %f, %f, %f", UNPACK_QUATERNION(fusedRotation));
 #endif

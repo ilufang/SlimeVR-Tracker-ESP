@@ -35,16 +35,16 @@ struct I2CImpl {
 	I2CImpl(uint8_t devAddr)
 		: m_devAddr(devAddr) {}
 
-	uint8_t readReg(uint8_t regAddr) const {
+	uint8_t readReg(uint8_t regAddr, int dev = -1) const {
 		uint8_t buffer = 0;
-		I2Cdev::readByte(m_devAddr, regAddr, &buffer);
+		I2Cdev::readByte(dev < 0 ? m_devAddr : dev, regAddr, &buffer);
 		return buffer;
 	}
 
-	uint16_t readReg16(uint8_t regAddr) const {
+	uint16_t readReg16(uint8_t regAddr, int dev = -1) const {
 		uint16_t buffer = 0;
 		I2Cdev::readBytes(
-			m_devAddr,
+			dev < 0 ? m_devAddr : dev,
 			regAddr,
 			sizeof(buffer),
 			reinterpret_cast<uint8_t*>(&buffer)
@@ -52,25 +52,25 @@ struct I2CImpl {
 		return buffer;
 	}
 
-	void writeReg(uint8_t regAddr, uint8_t value) const {
-		I2Cdev::writeByte(m_devAddr, regAddr, value);
+	void writeReg(uint8_t regAddr, uint8_t value, int dev = -1) const {
+		I2Cdev::writeByte(dev < 0 ? m_devAddr : dev, regAddr, value);
 	}
 
-	void writeReg16(uint8_t regAddr, uint16_t value) const {
+	void writeReg16(uint8_t regAddr, uint16_t value, int dev = -1) const {
 		I2Cdev::writeBytes(
-			m_devAddr,
+			dev < 0 ? m_devAddr : dev,
 			regAddr,
 			sizeof(value),
 			reinterpret_cast<uint8_t*>(&value)
 		);
 	}
 
-	void readBytes(uint8_t regAddr, uint8_t size, uint8_t* buffer) const {
-		I2Cdev::readBytes(m_devAddr, regAddr, size, buffer);
+	void readBytes(uint8_t regAddr, uint8_t size, uint8_t* buffer, int dev = -1) const {
+		I2Cdev::readBytes(dev < 0 ? m_devAddr : dev, regAddr, size, buffer);
 	}
 
-	void writeBytes(uint8_t regAddr, uint8_t size, uint8_t* buffer) const {
-		I2Cdev::writeBytes(m_devAddr, regAddr, size, buffer);
+	void writeBytes(uint8_t regAddr, uint8_t size, uint8_t* buffer, int dev = -1) const {
+		I2Cdev::writeBytes(dev < 0 ? m_devAddr : dev, regAddr, size, buffer);
 	}
 
 private:

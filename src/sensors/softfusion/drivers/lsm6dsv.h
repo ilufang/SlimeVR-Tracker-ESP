@@ -28,6 +28,7 @@
 #include <cstdint>
 
 #include "lsm6ds-common.h"
+#include "lis2mdl.h"
 
 namespace SlimeVR::Sensors::SoftFusion::Drivers {
 
@@ -53,8 +54,22 @@ struct LSM6DSV : LSM6DSOutputHandler<I2CImpl> {
 	static constexpr float AccelSensitivity = 1000 / 0.244f;
 
 	using LSM6DSOutputHandler<I2CImpl>::i2c;
+	using LSM6DSOutputHandler<I2CImpl>::sensor;
+	using LSM6DSOutputHandler<I2CImpl>::logger;
 
 	struct Regs {
+		struct FuncCfgAccess {
+			static constexpr uint8_t reg = 0x01;
+			static constexpr uint8_t valueNormal = 0x00;
+			static constexpr uint8_t valueSHub = 0x40;
+		};
+
+		struct IfaceCfg {
+			static constexpr uint8_t reg = 0x03;
+			static constexpr uint8_t valueDefault = 0;
+			static constexpr uint8_t valueSHubPullup = 0x40;
+		};
+
 		struct WhoAmI {
 			static constexpr uint8_t reg = 0x0f;
 			static constexpr uint8_t value = 0x70;
@@ -98,15 +113,75 @@ struct LSM6DSV : LSM6DSOutputHandler<I2CImpl> {
 
 		static constexpr uint8_t FifoStatus = 0x1b;
 		static constexpr uint8_t FifoData = 0x78;
+
+		struct SHubMasterConfig {
+			static constexpr uint8_t reg = 0x14;
+			static constexpr uint8_t valueOff = 0;
+			static constexpr uint8_t valuePassthru = 0x10;
+			static constexpr uint8_t valueMaster = 0x04;
+			static constexpr uint8_t valueWriteOnce = 0x44;
+		};
+
+		struct SHubMasterStatus {
+			static constexpr uint8_t reg = 0x22;
+		};
+
+		struct Slave0Addr {
+			static constexpr uint8_t reg = 0x15;
+			static constexpr uint8_t value = LIS2MDL_ADDR_R;
+		};
+
+		struct Slave0SubAddr {
+			static constexpr uint8_t reg = 0x16;
+			static constexpr uint8_t value = LIS2MDL_OUTX_L_REG;
+		};
+
+		struct Slave0Config {
+			static constexpr uint8_t reg = 0x17;
+			static constexpr uint8_t value = 0x8e; // Continuously read 6 bytes into FIFO at 120Hz
+		};
+
+		struct Slave0WData {
+			static constexpr uint8_t reg = 0x21;
+		};
 	};
 
-	LSM6DSV(I2CImpl i2c, SlimeVR::Logging::Logger& logger)
-		: LSM6DSOutputHandler<I2CImpl>(i2c, logger) {}
+	LSM6DSV(I2CImpl i2c, SlimeVR::Logging::Logger& logger, Sensor *sensor)
+		: LSM6DSOutputHandler<I2CImpl>(i2c, logger, sensor) {}
 
 	bool initialize() {
 		// perform initialization step
 		i2c.writeReg(Regs::Ctrl3C::reg, Regs::Ctrl3C::valueSwReset);
 		delay(20);
+
+		// Setup sensor hub in pass-through mode
+		i2c.writeReg(Regs::FuncCfgAccess::reg, Regs::FuncCfgAccess::valueSHub);
+		i2c.writeReg(Regs::SHubMasterConfig::reg, Regs::SHubMasterConfig::valueOff);
+		delayMicroseconds(333);
+		i2c.writeReg(Regs::FuncCfgAccess::reg, Regs::FuncCfgAccess::valueNormal);
+		i2c.writeReg(Regs::IfaceCfg::reg, Regs::IfaceCfg::valueDefault);
+		i2c.writeReg(Regs::FuncCfgAccess::reg, Regs::FuncCfgAccess::valueSHub);
+		i2c.writeReg(Regs::SHubMasterConfig::reg, Regs::SHubMasterConfig::valuePassthru);
+
+		// Setup LIS2MDL
+		if (i2c.readReg(LIS2MDL_WHO_AM_I, LIS2MDL_ADDR_R) == LIS2MDL_WHO_AM_I_VALUE) {
+			i2c.writeReg(LIS2MDL_CFG_REG_A, 0x8c, LIS2MDL_ADDR_W);
+			i2c.writeReg(LIS2MDL_CFG_REG_B, 0x02, LIS2MDL_ADDR_W);
+			i2c.writeReg(LIS2MDL_CFG_REG_C, 0x10, LIS2MDL_ADDR_W);
+
+			i2c.writeReg(Regs::Slave0Addr::reg, Regs::Slave0Addr::value);
+			i2c.writeReg(Regs::Slave0SubAddr::reg, Regs::Slave0SubAddr::value);
+			i2c.writeReg(Regs::Slave0Config::reg, Regs::Slave0Config::value);
+			i2c.writeReg(Regs::SHubMasterConfig::reg, Regs::SHubMasterConfig::valueMaster);
+			sensor->_setMagStatus(MagnetometerStatus::MAG_ENABLED);
+		} else {
+			logger.error("LIS2MDL not found");
+			i2c.writeReg(Regs::SHubMasterConfig::reg, Regs::SHubMasterConfig::valueOff);
+		}
+		i2c.writeReg(Regs::FuncCfgAccess::reg, Regs::FuncCfgAccess::valueNormal);
+		i2c.writeReg(Regs::IfaceCfg::reg, Regs::IfaceCfg::valueSHubPullup);
+
+		// Setup LSM6DSV
 		i2c.writeReg(Regs::HAODRCFG::reg, Regs::HAODRCFG::value);
 		i2c.writeReg(Regs::Ctrl1XLODR::reg, Regs::Ctrl1XLODR::value);
 		i2c.writeReg(Regs::Ctrl2GODR::reg, Regs::Ctrl2GODR::value);

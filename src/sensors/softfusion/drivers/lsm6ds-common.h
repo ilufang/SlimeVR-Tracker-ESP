@@ -31,12 +31,12 @@ namespace SlimeVR::Sensors::SoftFusion::Drivers {
 
 template <typename I2CImpl>
 struct LSM6DSOutputHandler {
-	LSM6DSOutputHandler(I2CImpl i2c, SlimeVR::Logging::Logger& logger)
-		: i2c(i2c)
-		, logger(logger) {}
+	LSM6DSOutputHandler(I2CImpl i2c, SlimeVR::Logging::Logger& logger, Sensor* sensor)
+		: i2c(i2c), logger(logger), sensor(sensor) {}
 
 	I2CImpl i2c;
 	SlimeVR::Logging::Logger& logger;
+	Sensor* sensor;
 
 	template <typename Regs>
 	float getDirectTemp() const {
@@ -92,12 +92,24 @@ struct LSM6DSOutputHandler {
 				sizeof(FifoEntryAligned)
 			);  // skip fifo header
 
+			RebornPacket *rawPkt = &(sensor->rawPkt);
 			switch (tag) {
 				case 0x01:  // Gyro NC
+					rawPkt->rX = entry.xyz[0];
+					rawPkt->rY = entry.xyz[1];
+					rawPkt->rZ = entry.xyz[2];
 					processGyroSample(entry.xyz, GyrTs);
 					break;
 				case 0x02:  // Accel NC
+					rawPkt->aX = entry.xyz[0];
+					rawPkt->aY = entry.xyz[1];
+					rawPkt->aZ = entry.xyz[2];
 					processAccelSample(entry.xyz, AccTs);
+					break;
+				case 0x0e:  // Sensor hub Magnetic
+					rawPkt->mX = entry.xyz[0];
+					rawPkt->mY = entry.xyz[1];
+					rawPkt->mZ = entry.xyz[2];
 					break;
 			}
 		}

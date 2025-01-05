@@ -82,6 +82,23 @@ bool Connection::beginPacket() {
 	return r > 0;
 }
 
+bool Connection::beginRebornPacket() {
+	if (m_IsBundle) {
+		m_BundlePacketPosition = 0;
+		return true;
+	}
+
+	int r = m_UDP.beginPacket(m_ServerHost, 20202);
+	if (r == 0) {
+		// This *technically* should *never* fail, since the underlying UDP
+		// library just returns 1.
+
+		m_Logger.warn("UDP beginRebornPacket() failed");
+	}
+
+	return r > 0;
+}
+
 bool Connection::endPacket() {
 	if (m_IsBundle) {
 		uint32_t innerPacketSize = m_BundlePacketPosition;
@@ -514,6 +531,34 @@ void Connection::sendInspectionRawIMUData(
 	MUST(endPacket());
 }
 #endif
+
+void Connection::sendRebornRawIMUData(RebornPacket *pkt) {
+	MUST(m_Connected);
+
+	MUST(beginRebornPacket());
+
+	MUST(sendBytes((uint8_t *)pkt, sizeof(RebornPacket)));
+
+	MUST(endPacket());
+
+#if ENABLE_INSPECTION
+	sendInspectionRawIMUData(
+		pkt->sensorId,
+		pkt->rX,
+		pkt->rY,
+		pkt->rZ,
+		255,
+		pkt->aX,
+		pkt->aY,
+		pkt->aZ,
+		255,
+		pkt->mX,
+		pkt->mY,
+		pkt->mZ,
+		255,
+	);
+#endif
+}
 
 void Connection::returnLastPacket(int len) {
 	MUST(m_Connected);
