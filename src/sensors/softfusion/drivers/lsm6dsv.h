@@ -70,6 +70,16 @@ struct LSM6DSV : LSM6DSOutputHandler<I2CImpl> {
 			static constexpr uint8_t valueSHubPullup = 0x40;
 		};
 
+		struct StatusReg {
+			static constexpr uint8_t reg = 0x1e;
+			static constexpr uint8_t TIMESTAMP_ENDCOUNT = 0x80;
+			static constexpr uint8_t OIS_DRDY = 0x20;
+			static constexpr uint8_t GDA_EIS = 0x10;
+			static constexpr uint8_t TDA = 0x04;
+			static constexpr uint8_t GDA = 0x02;
+			static constexpr uint8_t XLDA = 0x01;
+		};
+
 		struct WhoAmI {
 			static constexpr uint8_t reg = 0x0f;
 			static constexpr uint8_t value = 0x70;
@@ -82,6 +92,7 @@ struct LSM6DSV : LSM6DSOutputHandler<I2CImpl> {
 		struct Ctrl1XLODR {
 			static constexpr uint8_t reg = 0x10;
 			static constexpr uint8_t value = (0b0010110);  // 120Hz, HAODR
+			static constexpr uint8_t valueSHubSetup = 0x06;
 		};
 		struct Ctrl2GODR {
 			static constexpr uint8_t reg = 0x11;
@@ -124,11 +135,26 @@ struct LSM6DSV : LSM6DSOutputHandler<I2CImpl> {
 
 		struct SHubMasterStatus {
 			static constexpr uint8_t reg = 0x22;
+			static constexpr uint8_t regMain = 0x48;
+			static constexpr uint8_t WR_ONCE_DONE = 0x80;
+			static constexpr uint8_t SLAVE3_NACK = 0x40;
+			static constexpr uint8_t SLAVE2_NACK = 0x20;
+			static constexpr uint8_t SLAVE1_NACK = 0x10;
+			static constexpr uint8_t SLAVE0_NACK = 0x08;
+			static constexpr uint8_t SENS_HUB_ENDOP = 0x01;
+		};
+
+		struct SHubData {
+			static constexpr uint8_t reg1 = 0x02;
+			static constexpr uint8_t reg2 = 0x03;
+			static constexpr uint8_t reg3 = 0x04;
+			static constexpr uint8_t reg4 = 0x05;
+			// ... 14 more
 		};
 
 		struct Slave0Addr {
 			static constexpr uint8_t reg = 0x15;
-			static constexpr uint8_t value = LIS2MDL_ADDR_R;
+			static constexpr uint8_t value = (LIS2MDL_ADDR_R << 1) | 1;
 		};
 
 		struct Slave0SubAddr {
@@ -138,7 +164,9 @@ struct LSM6DSV : LSM6DSOutputHandler<I2CImpl> {
 
 		struct Slave0Config {
 			static constexpr uint8_t reg = 0x17;
-			static constexpr uint8_t value = 0x8e; // Continuously read 6 bytes into FIFO at 120Hz
+			static constexpr uint8_t valueReadOnce = 0x81; // Read 1 byte once
+			static constexpr uint8_t valueWriteOnce = 0x80; // Write 1 byte once
+			static constexpr uint8_t valueStream = 0x8e; // Continuously read 6 bytes into FIFO at 120Hz
 		};
 
 		struct Slave0WData {
@@ -154,32 +182,7 @@ struct LSM6DSV : LSM6DSOutputHandler<I2CImpl> {
 		i2c.writeReg(Regs::Ctrl3C::reg, Regs::Ctrl3C::valueSwReset);
 		delay(20);
 
-		// Setup sensor hub in pass-through mode
-		i2c.writeReg(Regs::FuncCfgAccess::reg, Regs::FuncCfgAccess::valueSHub);
-		i2c.writeReg(Regs::SHubMasterConfig::reg, Regs::SHubMasterConfig::valueOff);
-		delayMicroseconds(333);
-		i2c.writeReg(Regs::FuncCfgAccess::reg, Regs::FuncCfgAccess::valueNormal);
-		i2c.writeReg(Regs::IfaceCfg::reg, Regs::IfaceCfg::valueDefault);
-		i2c.writeReg(Regs::FuncCfgAccess::reg, Regs::FuncCfgAccess::valueSHub);
-		i2c.writeReg(Regs::SHubMasterConfig::reg, Regs::SHubMasterConfig::valuePassthru);
-
-		// Setup LIS2MDL
-		if (i2c.readReg(LIS2MDL_WHO_AM_I, LIS2MDL_ADDR_R) == LIS2MDL_WHO_AM_I_VALUE) {
-			i2c.writeReg(LIS2MDL_CFG_REG_A, 0x8c, LIS2MDL_ADDR_W);
-			i2c.writeReg(LIS2MDL_CFG_REG_B, 0x02, LIS2MDL_ADDR_W);
-			i2c.writeReg(LIS2MDL_CFG_REG_C, 0x10, LIS2MDL_ADDR_W);
-
-			i2c.writeReg(Regs::Slave0Addr::reg, Regs::Slave0Addr::value);
-			i2c.writeReg(Regs::Slave0SubAddr::reg, Regs::Slave0SubAddr::value);
-			i2c.writeReg(Regs::Slave0Config::reg, Regs::Slave0Config::value);
-			i2c.writeReg(Regs::SHubMasterConfig::reg, Regs::SHubMasterConfig::valueMaster);
-			sensor->_setMagStatus(MagnetometerStatus::MAG_ENABLED);
-		} else {
-			logger.error("LIS2MDL not found");
-			i2c.writeReg(Regs::SHubMasterConfig::reg, Regs::SHubMasterConfig::valueOff);
-		}
-		i2c.writeReg(Regs::FuncCfgAccess::reg, Regs::FuncCfgAccess::valueNormal);
-		i2c.writeReg(Regs::IfaceCfg::reg, Regs::IfaceCfg::valueSHubPullup);
+		_magSetup();
 
 		// Setup LSM6DSV
 		i2c.writeReg(Regs::HAODRCFG::reg, Regs::HAODRCFG::value);
@@ -206,6 +209,103 @@ struct LSM6DSV : LSM6DSOutputHandler<I2CImpl> {
 			AccTs
 		);
 	}
+
+private:
+	void _magSetup() {
+		// Wait for LIS2MDL to boot (20ms)
+		int now = millis();
+		if (now < 20) {
+			delay(20-now);
+		}
+
+#ifdef SHUB_SETUP_WRONCE
+		// Setup sensor hub in master write-once mode
+		i2c.writeReg(Regs::IfaceCfg::reg, Regs::IfaceCfg::valueSHubPullup);
+		i2c.writeReg(Regs::Ctrl1XLODR::reg, Regs::Ctrl1XLODR::valueSHubSetup);
+		i2c.writeReg(Regs::FuncCfgAccess::reg, Regs::FuncCfgAccess::valueSHub);
+		i2c.writeReg(Regs::SHubMasterConfig::reg, Regs::SHubMasterConfig::valueMaster);
+
+		// Setup LIS2MDL
+		delay(5); // FIXME: debug precautionary
+		if (shubRead(LIS2MDL_ADDR_R, LIS2MDL_WHO_AM_I) != LIS2MDL_WHO_AM_I_VALUE) {
+			goto disable_shub;
+		}
+		shubWrite(LIS2MDL_ADDR_W, LIS2MDL_CFG_REG_A, 0x8c);
+		shubWrite(LIS2MDL_ADDR_W, LIS2MDL_CFG_REG_B, 0x02);
+		shubWrite(LIS2MDL_ADDR_W, LIS2MDL_CFG_REG_C, 0x10);
+		i2c.writeReg(Regs::FuncCfgAccess::reg, Regs::FuncCfgAccess::valueNormal);
+#else
+		// Setup sensor hub in pass-through mode
+		i2c.writeReg(Regs::FuncCfgAccess::reg, Regs::FuncCfgAccess::valueSHub);
+		i2c.writeReg(Regs::SHubMasterConfig::reg, Regs::SHubMasterConfig::valueOff);
+		delayMicroseconds(333);
+		i2c.writeReg(Regs::FuncCfgAccess::reg, Regs::FuncCfgAccess::valueNormal);
+		i2c.writeReg(Regs::IfaceCfg::reg, Regs::IfaceCfg::valueDefault);
+		i2c.writeReg(Regs::FuncCfgAccess::reg, Regs::FuncCfgAccess::valueSHub);
+		i2c.writeReg(Regs::SHubMasterConfig::reg, Regs::SHubMasterConfig::valuePassthru);
+
+		// Setup LIS2MDL
+		delay(5); // FIXME: debug precautionary
+		if (i2c.readReg(LIS2MDL_WHO_AM_I, LIS2MDL_ADDR_R) != LIS2MDL_WHO_AM_I_VALUE) {
+			goto disable_shub;
+		}
+		i2c.writeReg(LIS2MDL_CFG_REG_A, 0x8c, LIS2MDL_ADDR_W);
+		i2c.writeReg(LIS2MDL_CFG_REG_B, 0x02, LIS2MDL_ADDR_W);
+		i2c.writeReg(LIS2MDL_CFG_REG_C, 0x10, LIS2MDL_ADDR_W);
+#endif
+
+		i2c.writeReg(Regs::Slave0Addr::reg, Regs::Slave0Addr::value);
+		i2c.writeReg(Regs::Slave0SubAddr::reg, Regs::Slave0SubAddr::value);
+		i2c.writeReg(Regs::Slave0Config::reg, Regs::Slave0Config::valueStream);
+		i2c.writeReg(Regs::SHubMasterConfig::reg, Regs::SHubMasterConfig::valueMaster);
+		sensor->_setMagStatus(MagnetometerStatus::MAG_ENABLED);
+		goto exit_shub;
+
+disable_shub:
+		logger.error("LIS2MDL not found");
+		i2c.writeReg(Regs::SHubMasterConfig::reg, Regs::SHubMasterConfig::valueOff);
+		goto exit_shub;
+
+exit_shub:
+		i2c.writeReg(Regs::FuncCfgAccess::reg, Regs::FuncCfgAccess::valueNormal);
+		i2c.writeReg(Regs::IfaceCfg::reg, Regs::IfaceCfg::valueSHubPullup);
+	}
+
+#ifdef SHUB_SETUP_WRONCE
+	uint8_t shubRead(uint8_t addr, uint8_t reg) {
+		i2c.writeReg(Regs::Slave0Addr::reg, (addr << 1) | 1);
+		i2c.writeReg(Regs::Slave0SubAddr::reg, reg);
+		i2c.writeReg(Regs::Slave0Config::reg, Regs::Slave0Config::valueReadOnce);
+		i2c.writeReg(Regs::SHubMasterConfig::reg, Regs::SHubMasterConfig::valueWriteOnce);
+		i2c.writeReg(Regs::FuncCfgAccess::reg, Regs::FuncCfgAccess::valueNormal);
+		i2c.readReg(0x29); // OUTX_H_A, clear accelerometer data-ready XLDA
+		while (!(i2c.readReg(Regs::StatusReg::reg) & Regs::StatusReg::XLDA)) {
+			delay(1);
+		}
+		i2c.writeReg(Regs::FuncCfgAccess::reg, Regs::FuncCfgAccess::valueSHub);
+		while (!(i2c.readReg(Regs::SHubMasterStatus::reg) & Regs::SHubMasterStatus::SENS_HUB_ENDOP)) {
+			delayMicroseconds(100);
+		}
+
+		return i2c.readReg(Regs::SHubData::reg1);
+	}
+
+	void shubWrite(uint8_t addr, uint8_t reg, uint8_t value) {
+		i2c.writeReg(Regs::Slave0Addr::reg, addr << 1);
+		i2c.writeReg(Regs::Slave0SubAddr::reg, reg);
+		i2c.writeReg(Regs::Slave0Config::reg, Regs::Slave0Config::valueWriteOnce);
+		i2c.writeReg(Regs::Slave0WData::reg, value);
+		i2c.writeReg(Regs::SHubMasterConfig::reg, Regs::SHubMasterConfig::valueWriteOnce);
+		// i2c.writeReg(Regs::FuncCfgAccess::reg, Regs::FuncCfgAccess::valueNormal);
+		// i2c.readReg(0x29); // OUTX_H_A, clear accelerometer data-ready XLDA
+		// while (!(i2c.readReg(Regs::StatusReg::reg) & Regs::StatusReg::XLDA)) {
+		// 	delay(1);
+		// }
+		while (!(i2c.readReg(Regs::SHubMasterStatus::regMain) & Regs::SHubMasterStatus::WR_ONCE_DONE)) {
+			delayMicroseconds(100);
+		}
+	}
+#endif
 };
 
 }  // namespace SlimeVR::Sensors::SoftFusion::Drivers
