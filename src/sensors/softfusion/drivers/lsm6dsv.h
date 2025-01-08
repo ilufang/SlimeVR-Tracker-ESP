@@ -154,7 +154,8 @@ struct LSM6DSV : LSM6DSOutputHandler<I2CImpl> {
 
 		struct Slave0Addr {
 			static constexpr uint8_t reg = 0x15;
-			static constexpr uint8_t value = (LIS2MDL_ADDR_R << 1) | 1;
+			static constexpr uint8_t valueRead = (LIS2MDL_ADDR << 1) | 1;
+			static constexpr uint8_t valueWrite = LIS2MDL_ADDR << 1;
 		};
 
 		struct Slave0SubAddr {
@@ -227,12 +228,12 @@ private:
 
 		// Setup LIS2MDL
 		delay(5); // FIXME: debug precautionary
-		if (shubRead(LIS2MDL_ADDR_R, LIS2MDL_WHO_AM_I) != LIS2MDL_WHO_AM_I_VALUE) {
+		if (shubRead(LIS2MDL_ADDR, LIS2MDL_WHO_AM_I) != LIS2MDL_WHO_AM_I_VALUE) {
 			goto disable_shub;
 		}
-		shubWrite(LIS2MDL_ADDR_W, LIS2MDL_CFG_REG_A, 0x8c);
-		shubWrite(LIS2MDL_ADDR_W, LIS2MDL_CFG_REG_B, 0x02);
-		shubWrite(LIS2MDL_ADDR_W, LIS2MDL_CFG_REG_C, 0x10);
+		shubWrite(LIS2MDL_ADDR, LIS2MDL_CFG_REG_A, 0x8c);
+		shubWrite(LIS2MDL_ADDR, LIS2MDL_CFG_REG_B, 0x02);
+		shubWrite(LIS2MDL_ADDR, LIS2MDL_CFG_REG_C, 0x10);
 		i2c.writeReg(Regs::FuncCfgAccess::reg, Regs::FuncCfgAccess::valueNormal);
 #else
 		// Setup sensor hub in pass-through mode
@@ -246,15 +247,15 @@ private:
 
 		// Setup LIS2MDL
 		delay(5); // FIXME: debug precautionary
-		if (i2c.readReg(LIS2MDL_WHO_AM_I, LIS2MDL_ADDR_R) != LIS2MDL_WHO_AM_I_VALUE) {
+		if (i2c.readReg(LIS2MDL_WHO_AM_I, LIS2MDL_ADDR) != LIS2MDL_WHO_AM_I_VALUE) {
 			goto disable_shub;
 		}
-		i2c.writeReg(LIS2MDL_CFG_REG_A, 0x8c, LIS2MDL_ADDR_W);
-		i2c.writeReg(LIS2MDL_CFG_REG_B, 0x02, LIS2MDL_ADDR_W);
-		i2c.writeReg(LIS2MDL_CFG_REG_C, 0x10, LIS2MDL_ADDR_W);
+		i2c.writeReg(LIS2MDL_CFG_REG_A, 0x8c, LIS2MDL_ADDR);
+		i2c.writeReg(LIS2MDL_CFG_REG_B, 0x02, LIS2MDL_ADDR);
+		i2c.writeReg(LIS2MDL_CFG_REG_C, 0x10, LIS2MDL_ADDR);
 #endif
 
-		i2c.writeReg(Regs::Slave0Addr::reg, Regs::Slave0Addr::value);
+		i2c.writeReg(Regs::Slave0Addr::reg, Regs::Slave0Addr::valueRead);
 		i2c.writeReg(Regs::Slave0SubAddr::reg, Regs::Slave0SubAddr::value);
 		i2c.writeReg(Regs::Slave0Config::reg, Regs::Slave0Config::valueStream);
 		i2c.writeReg(Regs::SHubMasterConfig::reg, Regs::SHubMasterConfig::valueMaster);

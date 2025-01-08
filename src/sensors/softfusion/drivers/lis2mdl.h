@@ -1,8 +1,7 @@
 #ifndef LIS2MDL_H
 #define LIS2MDL_H
 
-#define LIS2MDL_ADDR_R 0x3d
-#define LIS2MDL_ADDR_W 0x3c
+#define LIS2MDL_ADDR 0x1e
 
 #define LIS2MDL_OFFSET_X_REG_L 0x45
 #define LIS2MDL_OFFSET_X_REG_H 0x46
