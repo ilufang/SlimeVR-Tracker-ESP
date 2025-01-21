@@ -48,6 +48,13 @@ void Sensor::setFusedRotation(Quat r) {
 }
 
 void Sensor::sendData() {
+	uint32_t now = millis();
+	if (now - rawPkt.ts >= 10) {
+		rawPkt.sensorId = sensorId;
+		rawPkt.ts = now;
+		networkConnection.sendRebornRawIMUData(&rawPkt);
+	}
+
 	if (newFusedRotation) {
 		newFusedRotation = false;
 		networkConnection.sendRotationData(
@@ -56,10 +63,6 @@ void Sensor::sendData() {
 			DATA_TYPE_NORMAL,
 			calibrationAccuracy
 		);
-
-		rawPkt.sensorId = sensorId;
-		rawPkt.ts = millis();
-		networkConnection.sendRebornRawIMUData(&rawPkt);
 
 #ifdef DEBUG_SENSOR
 		m_Logger.trace("Quaternion: %f, %f, %f, %f", UNPACK_QUATERNION(fusedRotation));

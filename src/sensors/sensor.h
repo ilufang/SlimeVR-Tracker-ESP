@@ -80,6 +80,7 @@ public:
 		, m_Logger(SlimeVR::Logging::Logger(sensorName))
 		, sclPin(sclpin)
 		, sdaPin(sdapin) {
+		memset(&rawPkt, 0, sizeof(rawPkt));
 		char buf[4];
 		sprintf(buf, "%u", id);
 		m_Logger.setTag(buf);

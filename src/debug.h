@@ -64,7 +64,7 @@
 #endif
 
 // Packet bundling/aggregation
-#define PACKET_BUNDLING PACKET_BUNDLING_BUFFERED
+#define PACKET_BUNDLING PACKET_BUNDLING_DISABLED
 // Extra tunable for PACKET_BUNDLING_BUFFERED (10000us = 10ms timeout, 100hz target)
 #define PACKET_BUNDLING_BUFFER_SIZE_MICROS 10000
 

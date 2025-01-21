@@ -110,6 +110,7 @@ struct LSM6DSOutputHandler {
 					rawPkt->mX = entry.xyz[0];
 					rawPkt->mY = entry.xyz[1];
 					rawPkt->mZ = entry.xyz[2];
+					// logger.info("Mag: %5d, %5d, %5d", entry.xyz[0], entry.xyz[1], entry.xyz[2]);
 					break;
 			}
 		}

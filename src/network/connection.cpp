@@ -555,7 +555,7 @@ void Connection::sendRebornRawIMUData(RebornPacket *pkt) {
 		pkt->mX,
 		pkt->mY,
 		pkt->mZ,
-		255,
+		255
 	);
 #endif
 }

@@ -221,7 +221,7 @@ private:
 
 #ifdef SHUB_SETUP_WRONCE
 		// Setup sensor hub in master write-once mode
-		i2c.writeReg(Regs::IfaceCfg::reg, Regs::IfaceCfg::valueSHubPullup);
+		// i2c.writeReg(Regs::IfaceCfg::reg, Regs::IfaceCfg::valueSHubPullup);
 		i2c.writeReg(Regs::Ctrl1XLODR::reg, Regs::Ctrl1XLODR::valueSHubSetup);
 		i2c.writeReg(Regs::FuncCfgAccess::reg, Regs::FuncCfgAccess::valueSHub);
 		i2c.writeReg(Regs::SHubMasterConfig::reg, Regs::SHubMasterConfig::valueMaster);
@@ -260,6 +260,7 @@ private:
 		i2c.writeReg(Regs::Slave0Config::reg, Regs::Slave0Config::valueStream);
 		i2c.writeReg(Regs::SHubMasterConfig::reg, Regs::SHubMasterConfig::valueMaster);
 		sensor->_setMagStatus(MagnetometerStatus::MAG_ENABLED);
+		logger.info("LIS2MDL connected. Mag enabled");
 		goto exit_shub;
 
 disable_shub:
@@ -269,7 +270,7 @@ disable_shub:
 
 exit_shub:
 		i2c.writeReg(Regs::FuncCfgAccess::reg, Regs::FuncCfgAccess::valueNormal);
-		i2c.writeReg(Regs::IfaceCfg::reg, Regs::IfaceCfg::valueSHubPullup);
+		// i2c.writeReg(Regs::IfaceCfg::reg, Regs::IfaceCfg::valueSHubPullup);
 	}
 
 #ifdef SHUB_SETUP_WRONCE
